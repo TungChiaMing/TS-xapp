@@ -22,7 +22,7 @@
                     	"A1_POLICY_REQ",
 			"TS_ANOMALY_UPDATE"
                     ],
-                    "txMessages": [ "TS_UE_LIST", "TS_ANOMALY_ACK" ],
+                    "txMessages": [ "TS_UE_LIST", "TS_ANOMALY_ACK" ,"RIC_SUB_REQ"],
                     "policies": [20008],
                     "description": "rmr receive data port for mcxapp"
                 },
@@ -40,7 +40,8 @@
             "numWorkers": 1,
             "txMessages": [
                 "TS_UE_LIST",
-		"TS_ANOMALY_ACK"
+		"TS_ANOMALY_ACK",
+		"RIC_SUB_REQ"
             ],
             "rxMessages": [
                 "TS_QOE_PREDICTION",

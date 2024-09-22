@@ -15,8 +15,18 @@
 #==================================================================================
 #
 
-add_executable( ts_xapp ts_xapp.cpp )
-target_link_libraries( ts_xapp ricxfcpp;rmr_si;sdl;pthread )
+
+
+file(GLOB_RECURSE LIB_FILES ./*.cc )
+file(GLOB_RECURSE LIB_FILES_C ./*.c )
+
+add_executable(ts_xapp ts_xapp.cpp ${LIB_FILES} ${LIB_FILES_C})
+
+set(CMAKE_PREFIX_PATH /usr/local/include/rnib)
+find_library(RNIB rnibreader.a REQUIRED PATHS /usr/local/include/rnib/rnibreader.a)
+
+target_link_libraries( ts_xapp ricxfcpp;rmr_si;sdl;pthread;mdclog)
+
 
 install( 
     TARGETS ts_xapp

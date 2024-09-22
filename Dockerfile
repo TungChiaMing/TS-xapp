@@ -31,7 +31,7 @@
 
 # the builder has: git, wget, cmake, gcc/g++, make, python2/3. v7 dropped nng support
 #
-FROM nexus3.o-ran-sc.org:10004/o-ran-sc/bldr-ubuntu18-c-go:9-u18.04 as buildenv
+FROM nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-ubuntu18-c-go:1.9.0 as buildenv
 
 # spaces to save things in the build image to copy to final image
 RUN mkdir -p /playpen/assets /playpen/src /playpen/bin
@@ -47,6 +47,21 @@ ARG XFCPP_VER=1.2.0
 # package cloud urls for wget
 ARG PC_REL_URL=https://packagecloud.io/o-ran-sc/release/packages/debian/stretch
 ARG PC_STG_URL=https://packagecloud.io/o-ran-sc/staging/packages/debian/stretch
+
+
+# Install mdclog using debian package hosted at packagecloud.io
+ARG MDC_VER=0.0.4-1
+RUN wget -nv --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_${MDC_VER}_amd64.deb/download.deb
+RUN wget -nv --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_${MDC_VER}_amd64.deb/download.deb
+RUN dpkg -i mdclog_${MDC_VER}_amd64.deb
+RUN dpkg -i mdclog-dev_${MDC_VER}_amd64.deb
+
+
+#Install RNIB libraries
+ARG RNIB_VER=1.0.0
+RUN wget -nv --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/rnib_${RNIB_VER}_all.deb/download.deb
+RUN dpkg -i rnib_${RNIB_VER}_all.deb
+
 
 # pull in rmr
 RUN wget -nv --content-disposition ${PC_REL_URL}/rmr_${RMR_VER}_amd64.deb/download.deb && \
@@ -112,6 +127,14 @@ RUN wget -nv --content-disposition ${PC_STG_URL}/sdl_${SDL_VER}-1_amd64.deb/down
 	wget -nv --content-disposition ${PC_STG_URL}/sdl-dev_${SDL_VER}-1_amd64.deb/download.deb &&\
 	dpkg -i sdl-dev_${SDL_VER}-1_amd64.deb sdl_${SDL_VER}-1_amd64.deb
 
+
+# Install mdclog using debian package hosted at packagecloud.io
+ARG MDC_VER=0.0.4-1
+RUN wget -nv --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog_${MDC_VER}_amd64.deb/download.deb
+RUN wget -nv --content-disposition https://packagecloud.io/o-ran-sc/release/packages/debian/stretch/mdclog-dev_${MDC_VER}_amd64.deb/download.deb
+RUN dpkg -i mdclog_${MDC_VER}_amd64.deb
+RUN dpkg -i mdclog-dev_${MDC_VER}_amd64.deb
+
 RUN rm -fr /var/lib/apt/lists
 
 # snarf the various sdl, rmr, and cpp-framework libraries as well as any binaries
@@ -123,11 +146,16 @@ COPY --from=buildenv /playpen/bin /usr/local/bin/
 COPY --from=buildenv /playpen/assets /data
 
 
+COPY --from=buildenv /usr/local/include/rnib/*.h /usr/local/include/rnib/
+COPY --from=buildenv /usr/local/include/rnib/rnibreader.a /usr/local/include/rnib/
+
 ENV PATH=/usr/local/bin:$PATH
 ENV LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib
 
 WORKDIR /data
 COPY --from=buildenv /playpen/assets/* /data
+
+RUN ldconfig
 
 # if needed, set RMR vars
 ENV RMR_SEED_RT=/data/bootstrap.rt

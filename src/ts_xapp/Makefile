@@ -21,12 +21,26 @@
 # library has been installed or the LD_LIBRARY_PATH and C_INCLUDE_PATH environent
 # variables are set to reference the needed files.
 
-%.o:: %.cpp %.hpp
+
+####### Logging library and flags
+CLOGFLAGS:= `pkg-config mdclog --cflags`
+LOG_LIBS:= `pkg-config mdclog --libs`
+CURL_LIBS:= `pkg-config libcurl --libs`
+RNIB_LIBS:= -pthread /usr/local/include/rnib/rnibreader.a
+######## Keep include dirs separate so we have transparency
+
+BASEFLAGS=  -Wall -std=c++14 $(CLOGFLAGS) 
+C_BASEFLAGS= -Wall $(CLOGFLAGS) -DASN_DISABLE_OER_SUPPORT
+
+
+%.o:: %.cpp %.hpp 
 	g++ -g ${prereq%% *} -c 
 
-% :: %.cpp
-	g++ $< -g -o $@  -lricxfcpp -lrmr_si -lpthread -lm -lsdl
+LIBS = $(LOG_LIBS) $(CURL_LIBS) $(RNIB_LIBS)
 
+% :: %.cpp
+	g++ $< -g -o $@ -lricxfcpp -lrmr_si -lpthread -lm -lsdl $(LIBS)
+  
 all:: ts_xapp
 
 install::

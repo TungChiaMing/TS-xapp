@@ -56,6 +56,9 @@
 
 #include "ricxfcpp/xapp.hpp"
 
+#include "xapp.hpp"
+
+
 using namespace rapidjson;
 using namespace std;
 using Namespace = std::string;
@@ -432,7 +435,9 @@ void prediction_callback( Message& mbuf, int mtype, int subid, int len, Msg_comp
   int send_mtype = 0;
   int rmtype;							// received message type
   int delay = 1000000;				// mu-sec delay; default 1s
-
+  std::unique_ptr<Message> msg;
+  Msg_component send_payload;
+  
   cout << "Prediction Callback got a message, type=" << mtype << " , length=" << len << "\n";
   cout << "payload is " << payload.get() << "\n";
 
@@ -509,7 +514,42 @@ void prediction_callback( Message& mbuf, int mtype, int subid, int len, Msg_comp
 
   mbuf.Send_response( 101, -1, 5, (unsigned char *) "OK1\n" );	// validate that we can use the same buffer for 2 rts calls
   mbuf.Send_response( 101, -1, 5, (unsigned char *) "OK2\n" );
+  /*CEI*/  
+  msg = xfw->Alloc_msg( 20480 );
+  sz = msg->Get_available_size(); 
   
+  const unsigned char message_body1[] = 
+  {0x00,0x08,0x00,0x28,0x00,0x00,0x03,0x00,0x1d,0x00,0x05,0x00,0x03,0xe9,0x03,0xe9,
+   0x00,0x05,0x00,0x02,0x00,0x00,0x00,0x1e,
+   0x00,0x12,0x00,0x08,0x20,0x34,0x00,0x00,
+   0x00,0x00,0x00,0x00,0x00,0x00,0x13,0x00,
+   0x03,0x00,0x00,0x00};
+  
+  //string Ken_meid = "&{%!d(string=373437) %!d(string=10110101110001100111011110001) %!d(string=gnb_734_733_b5c67788)}";	
+  //const char *msg_buf = message_body1.c_str();
+  //char *body = "{\"CEU_SEND_TS\"}";
+  
+  //const char *msg_buf = message_body1.c_str();
+ 
+     
+  send_payload = msg->Get_payload(); // direct access to payload
+  //send_meid = msg->Get_meid(); // direct access to meid
+  //strcpy((char*)send_meid.get(), "Ken_Meid");
+  memcpy((char*)send_payload.get(), message_body1, 44);
+ 
+  
+  //cout << send_meid.get() << "\n" ;
+  
+  //strcpy((string*)send_payload.get(), Ken_meid, Ken_meid.size()); 
+  //snprintf( (char *) send_payload.get(), 2048, "{\"UEPredictionSet\": [\"12345\"]}");
+  fprintf(stderr, "message msg_buf %s\n", send_payload.get());  
+  //fprintf(stderr, "payload length %d\n", sizeof( (char *) send_payload.get() ));
+  // payload updated in place, nothing to copy from, so payload parm is nil
+  if ( ! msg->Send_msg( 12010, 1002, 44, NULL )) {
+    fprintf( stderr, "<SNDR> send failed: %d\n", msg->Get_state() );
+  }else{
+    fprintf( stderr, "<SNDR> send successful[SUB_REQ]\n");
+  }  
   
 }
 
@@ -561,29 +601,188 @@ void ad_callback( Message& mbuf, int mtype, int subid, int len, Msg_component pa
   mbuf.Send_response(30004, -1, strlen((char *) payload.get()), (unsigned char *) payload.get());
 }
 
+
+void signalHandler( int signum ) {
+   cout << "Interrupt signal (" << signum << ") received.\n";
+   exit(signum);
+}
+/*
+void subscribe_requests(void ){
+
+   bool res;
+   size_t data_size = ASN_BUFF_MAX_SIZE;
+   unsigned char	data[data_size];
+   unsigned char meid[RMR_MAX_MEID];
+   std::string xapp_id = config_ref->operator [](XappSettings::SettingName::XAPP_ID);
+
+   mdclog_write(MDCLOG_INFO,"Preparing to send subscription in file= %s, line=%d",__FILE__,__LINE__);
+
+   //auto gnblist = get_rnib_gnblist();
+
+   //int sz = gnblist.size();
+
+   //if(sz <= 0)
+   //mdclog_write(MDCLOG_INFO,"Subscriptions cannot be sent as GNBList in RNIB is NULL");
+
+   for(int i = 0; i<1; i++)
+   {
+	 sleep(15); 
+	 //give the message to subscription handler, along with the transmitter.
+	 strcpy((char*)meid,"gnb_734_733_b5c67788");
+
+     //mdclog_write(MDCLOG_INFO,"GNBList size : %d", sz);
+
+	 subscription_helper  din;
+	 subscription_helper  dout;
+
+	 subscription_request sub_req;
+	 subscription_request sub_recv;
+
+	 unsigned char buf[BUFFER_SIZE];
+	 size_t buf_size = BUFFER_SIZE;
+	 bool res;
+
+
+	 //Random Data  for request
+	 int request_id = 1;
+	 int function_id = 0;
+	 std::string event_def = "01";
+
+	 din.set_request(request_id);
+	 din.set_function_id(function_id);
+	 din.set_event_def(event_def.c_str(), event_def.length());
+
+	 std::string act_def = "01";
+
+	 din.add_action(1,0,(void*)act_def.c_str(), act_def.length(), 0);
+
+	 res = sub_req.encode_e2ap_subscription(&buf[0], &buf_size, din);
+
+ 	 //mdclog_write(MDCLOG_INFO,"GNBList = %s and ith val = %d", gnblist[i], i);
+
+	 mdclog_write(MDCLOG_INFO,"Sending subscription in file= %s, line=%d for MEID %s",__FILE__,__LINE__, meid);
+	 
+	 xapp_rmr_header rmr_header;
+ 	 rmr_header.message_type = RIC_SUB_REQ;
+ 	 rmr_header.payload_length = buf_size; //data_size
+
+	 strcpy((char*)rmr_header.meid,"gnb_734_733_b5c67788");
+
+	 auto transmitter = std::bind(&XappRmr::xapp_rmr_send,rmr_ref, &rmr_header, (void*)buf); //(void*)data);
+         
+         int result = subhandler_ref->manage_subscription_request("gnb_734_733_b5c67788", transmitter);
+         
+       	 if(result==SUBSCR_SUCCESS){
+
+     	      mdclog_write(MDCLOG_INFO,"Subscription SUCCESSFUL in file= %s, line=%d for MEID %s",__FILE__,__LINE__, meid);
+          }
+          else {
+		 mdclog_write(MDCLOG_ERR,"Subscription FAILED in file= %s, line=%d for MEID %s",__FILE__,__LINE__, meid);
+              }  
+	} 
+}
+
+*/
+/*
+void begin_sub_req(SubscriptionHandler &sub_ref) {
+
+	subhandler_ref = &sub_ref;
+	
+
+	sleep(100);
+
+
+	subscribe_requests();
+
+
+	return;
+}
+*/
+
 extern int main( int argc, char** argv ) {
 
+
+  
   int nthreads = 1;
 
-  char*	port = (char *) "4560";
+  //char*	port = (char *) "4560";
 
   sdl = shareddatalayer::SyncStorage::create();
 
   nsu = Namespace(sdl_namespace_u);
   nsc = Namespace(sdl_namespace_c);
-
   
+  /* Send E2 Subscription */
+
+  // Get the thread id
+  std::thread::id my_id = std::this_thread::get_id();
+  std::stringstream thread_id;
+  std::stringstream ss;
+
+  thread_id << my_id;
+
+  mdclog_write(MDCLOG_INFO, "Starting thread %s",  thread_id.str().c_str());
+
+  //get configuration
+  XappSettings config;
+  //change the priority depending upon application requirement
+  config.loadDefaultSettings();
+  config.loadEnvVarSettings();
+  config.loadCmdlineSettings(argc, argv);
+
+  //Register signal handler to stop
+  signal(SIGINT, signalHandler);
+  signal(SIGTERM, signalHandler);
+
+  //getting the listening port and xapp name info
+  std::string  port_b = config[XappSettings::SettingName::BOUNCER_PORT];
+  std::string  name = config[XappSettings::SettingName::XAPP_NAME];
+
+  //initialize rmr
+  std::unique_ptr<XappRmr> rmr = std::make_unique<XappRmr>(port_b);
+  rmr->xapp_rmr_init(true);
+
+
+  //Create Subscription Handler if Xapp deals with Subscription.
+  //std::unique_ptr<SubscriptionHandler> sub_handler = std::make_unique<SubscriptionHandler>();
+
+  SubscriptionHandler sub_handler;
+
+  //create Bouncer Xapp Instance.
+  std::unique_ptr<Xapp_b> b_xapp;
+  b_xapp = std::make_unique<Xapp_b>(std::ref(config),std::ref(*rmr));
+
+  mdclog_write(MDCLOG_INFO, "Created TS Xapp Instance");
+  //Startup E2 subscription
+  b_xapp->startup(sub_handler);
+  int num_threads = std::stoi(config[XappSettings::SettingName::THREADS]);
+  mdclog_write(MDCLOG_INFO, "Starting Listener Threads. Number of Workers = %d", num_threads);
+
+  std::unique_ptr<XappMsgHandler> mp_handler = std::make_unique<XappMsgHandler>(config[XappSettings::SettingName::XAPP_ID], sub_handler);
+
+  b_xapp->start_xapp_receiver(std::ref(*mp_handler));
+
+  sleep(1);
+
+
+
+  while(1){
+	sleep(1);
+  }
+
+  return 0;
+  /*
   fprintf( stderr, "<XAPP> listening on port: %s\n", port );
   xfw = std::unique_ptr<Xapp>( new Xapp( port, true ) ); 
   
   xfw->Add_msg_cb( 20010, policy_callback, NULL );
   xfw->Add_msg_cb( 30002, prediction_callback, NULL );
-  xfw->Add_msg_cb( 30003, ad_callback, NULL ); /*Register a callback function for msg type 30003*/
+  xfw->Add_msg_cb( 30003, ad_callback, NULL ); 
   
   std::thread loop_thread;
 
   loop_thread = std::thread(&run_loop);
 
   xfw->Run( nthreads );
-  
+  */
 }
